@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
-import { Order, OrderItem } from "@shared/schema";
+import { Order, OrderItem, User } from "@shared/schema";
 import { Loader2, Eye, Package } from "lucide-react";
 
 const OrdersPage: React.FC = () => {
@@ -41,17 +41,17 @@ const OrdersPage: React.FC = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders, isLoading } = useQuery<Order[]>({
     queryKey: ["/api/orders"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
-  const { data: users } = useQuery({
+  const { data: users } = useQuery<User[]>({
     queryKey: ["/api/users"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
-  const { data: orderItems, isLoading: isLoadingOrderItems } = useQuery({
+  const { data: orderItems, isLoading: isLoadingOrderItems } = useQuery<OrderItem[]>({
     queryKey: ["/api/orders", selectedOrderId, "items"],
     queryFn: getQueryFn({ on401: "throw" }),
     enabled: selectedOrderId !== null,
@@ -95,8 +95,11 @@ const OrdersPage: React.FC = () => {
   };
 
   // Format date from timestamp
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString();
+  const formatDate = (timestamp: number | Date) => {
+    if (typeof timestamp === 'number') {
+      return new Date(timestamp * 1000).toLocaleString();
+    }
+    return new Date(timestamp).toLocaleString();
   };
 
   // Get status badge color
@@ -234,7 +237,7 @@ const OrdersPage: React.FC = () => {
                           <span className="font-medium">Date:</span>
                           <span>
                             {formatDate(
-                              orders.find((o) => o.id === selectedOrderId)?.createdAt || 0
+                              orders?.find((o) => o.id === selectedOrderId)?.createdAt || new Date()
                             )}
                           </span>
                         </div>

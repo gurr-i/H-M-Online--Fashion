@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, Search, User, Heart, ShoppingBag } from "lucide-react";
+import { Menu, Search, User, Heart, ShoppingBag, Settings } from "lucide-react";
 import Logo from "@/components/ui/Logo";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import useCart from "@/hooks/useCart";
+import { useAuth } from "@/hooks/use-auth";
 
 const Header: React.FC = () => {
   const [location] = useLocation();
   const { cartItems } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user } = useAuth();
 
   // Calculate total items in cart
   const totalItems = cartItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
@@ -47,6 +49,14 @@ const Header: React.FC = () => {
               <Link href="/home-collection" onClick={() => setMobileMenuOpen(false)}>
                 <div className="text-xl font-semibold">Home</div>
               </Link>
+              <Link href="/search" onClick={() => setMobileMenuOpen(false)}>
+                <div className="text-xl font-semibold">Search</div>
+              </Link>
+              {user?.role === "admin" && (
+                <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                  <div className="text-xl font-semibold">Admin Dashboard</div>
+                </Link>
+              )}
               <Link href="/shopping-bag" onClick={() => setMobileMenuOpen(false)}>
                 <div className="text-xl font-semibold">Shopping Bag ({totalItems})</div>
               </Link>
@@ -99,10 +109,23 @@ const Header: React.FC = () => {
 
         {/* Right side icons */}
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" className="hidden sm:flex">
-            <Search className="h-5 w-5" />
-            <span className="sr-only">Search</span>
-          </Button>
+          <Link href="/search">
+            <Button variant="ghost" size="icon" className="hidden sm:flex">
+              <Search className="h-5 w-5" />
+              <span className="sr-only">Search</span>
+            </Button>
+          </Link>
+
+          {/* Admin Dashboard Access */}
+          {user?.role === "admin" && (
+            <Link href="/admin">
+              <Button variant="ghost" size="icon" className="hidden sm:flex">
+                <Settings className="h-5 w-5" />
+                <span className="sr-only">Admin Dashboard</span>
+              </Button>
+            </Link>
+          )}
+
           <Link href="/profile">
             <div>
               <Button variant="ghost" size="icon">
@@ -111,10 +134,12 @@ const Header: React.FC = () => {
               </Button>
             </div>
           </Link>
-          <Button variant="ghost" size="icon">
-            <Heart className="h-5 w-5" />
-            <span className="sr-only">Favorites</span>
-          </Button>
+          <Link href="/wishlist">
+            <Button variant="ghost" size="icon">
+              <Heart className="h-5 w-5" />
+              <span className="sr-only">Favorites</span>
+            </Button>
+          </Link>
           <Link href="/shopping-bag">
             <div className="relative">
               <Button variant="ghost" size="icon">

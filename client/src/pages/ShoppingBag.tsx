@@ -62,7 +62,7 @@ const ShoppingBag: React.FC = () => {
                   </div>
                   <div className="ml-4 flex-grow">
                     <h3 className="font-medium">{item.product.name}</h3>
-                    <p className="text-sm text-gray-600 mb-2">₹ {item.product.price.toFixed(2)}</p>
+                    <p className="text-sm text-gray-600 mb-2">₹ {item.product.price ? item.product.price.toFixed(2) : 'N/A'}</p>
                     <div className="flex items-center mt-2">
                       <Button
                         variant="outline"
@@ -98,7 +98,7 @@ const ShoppingBag: React.FC = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">₹ {(item.quantity * item.product.price).toFixed(2)}</p>
+                    <p className="font-medium">₹ {item.product.price ? (item.quantity * item.product.price).toFixed(2) : 'N/A'}</p>
                   </div>
                 </div>
               ))}
@@ -119,9 +119,11 @@ const ShoppingBag: React.FC = () => {
                     <p className="font-medium">₹ {cartTotal.toFixed(2)}</p>
                   </div>
                   
-                  <Button className="w-full bg-gray-200 py-3 text-sm font-medium mb-4 hover:bg-gray-300 text-black" variant="secondary">
-                    CONTINUE TO CHECKOUT
-                  </Button>
+                  <Link href="/checkout">
+                    <Button className="w-full bg-gray-200 py-3 text-sm font-medium mb-4 hover:bg-gray-300 text-black" variant="secondary">
+                      CONTINUE TO CHECKOUT
+                    </Button>
+                  </Link>
                   
                   <div className="flex justify-center space-x-2 mb-4">
                     <Receipt className="h-6 w-8" />

@@ -34,7 +34,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
-import { Product, InsertProduct, insertProductSchema } from "@shared/schema";
+import { Product, InsertProduct, insertProductSchema, Category } from "@shared/schema";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 
 const ProductsPage: React.FC = () => {
@@ -43,12 +43,12 @@ const ProductsPage: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { toast } = useToast();
 
-  const { data: products, isLoading } = useQuery({
+  const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
-  const { data: categories } = useQuery({
+  const { data: categories } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
     queryFn: getQueryFn({ on401: "throw" }),
   });

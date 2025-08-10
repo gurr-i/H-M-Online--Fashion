@@ -2,15 +2,28 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CartItemWithProduct, InsertCartItem } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
-// For simplicity, we're using a fixed session ID
-// In a real app, this would come from authentication
-const SESSION_ID = "guest-session";
+// Generate a session ID based on user or browser session
+const getSessionId = (userId?: number) => {
+  if (userId) {
+    return `user-${userId}`;
+  }
+  // For guest users, use a persistent session ID stored in localStorage
+  let guestSessionId = localStorage.getItem('guest-session-id');
+  if (!guestSessionId) {
+    guestSessionId = `guest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('guest-session-id', guestSessionId);
+  }
+  return guestSessionId;
+};
 
 export default function useCart() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const cartEndpoint = `/api/cart?sessionId=${SESSION_ID}`;
+  const { user } = useAuth();
+  const sessionId = getSessionId(user?.id);
+  const cartEndpoint = `/api/cart?sessionId=${sessionId}`;
 
   // Fetch cart items
   const { data: cartItems, isLoading, error } = useQuery<CartItemWithProduct[]>({
@@ -79,7 +92,7 @@ export default function useCart() {
   // Clear cart
   const clearCartMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/cart?sessionId=${SESSION_ID}`);
+      await apiRequest("DELETE", `/api/cart?sessionId=${sessionId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [cartEndpoint] });

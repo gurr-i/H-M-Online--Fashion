@@ -15,8 +15,17 @@ import {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication
   setupAuth(app);
-  
+
   const apiRouter = express.Router();
+
+  // Health check endpoint
+  apiRouter.get("/health", (req: Request, res: Response) => {
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      message: "H&M Fashion API is running"
+    });
+  });
 
   // Products routes
   apiRouter.get("/products", async (req: Request, res: Response) => {
@@ -185,8 +194,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cart routes
   apiRouter.get("/cart", async (req: Request, res: Response) => {
     try {
-      // Use session ID to identify the cart
-      const sessionId = req.session.id || "guest-session";
+      // Get session ID from query parameter or generate one
+      let sessionId = req.query.sessionId as string;
+
+      if (!sessionId) {
+        // Fallback to user-based session ID if authenticated
+        const userId = (req as any).user?.id;
+        if (userId) {
+          sessionId = `user-${userId}`;
+        } else {
+          sessionId = req.session.id || "guest-session";
+        }
+      }
+
       const cartItems = await storage.getCartItems(sessionId);
       res.json(cartItems);
     } catch (error) {
@@ -201,13 +221,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid cart item data" });
       }
 
-      // Override sessionId with session ID from request
-      const sessionId = req.session.id || "guest-session";
+      // Use sessionId from request body, or generate one
+      let sessionId = result.data.sessionId;
+
+      if (!sessionId) {
+        // Fallback to user-based session ID if authenticated
+        const userId = (req as any).user?.id;
+        if (userId) {
+          sessionId = `user-${userId}`;
+        } else {
+          sessionId = req.session.id || "guest-session";
+        }
+      }
+
       const cartItem = await storage.addToCart({
         ...result.data,
         sessionId
       });
-      
+
       res.status(201).json(cartItem);
     } catch (error) {
       res.status(500).json({ message: "Failed to add item to cart" });
@@ -261,8 +292,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   apiRouter.delete("/cart", async (req: Request, res: Response) => {
     try {
-      // Use session ID to identify the cart
-      const sessionId = req.session.id || "guest-session";
+      // Get session ID from query parameter or generate one
+      let sessionId = req.query.sessionId as string;
+
+      if (!sessionId) {
+        // Fallback to user-based session ID if authenticated
+        const userId = (req as any).user?.id;
+        if (userId) {
+          sessionId = `user-${userId}`;
+        } else {
+          sessionId = req.session.id || "guest-session";
+        }
+      }
+
       await storage.clearCart(sessionId);
       res.status(204).send();
     } catch (error) {
@@ -351,6 +393,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User Orders Route
+  apiRouter.get("/user/orders", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const orders = await storage.getUserOrders(userId);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching orders" });
+    }
+  });
+
   // Admin Order Routes
   apiRouter.get("/orders", isAdmin, async (req: Request, res: Response) => {
     try {
@@ -361,32 +418,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  apiRouter.get("/orders/:id", isAdmin, async (req: Request, res: Response) => {
+  apiRouter.get("/orders/:id", async (req: Request, res: Response) => {
     try {
+      const userId = (req as any).user?.id;
       const id = parseInt(req.params.id, 10);
+
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid order ID" });
       }
-      
+
       const order = await storage.getOrderById(id);
-      
+
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
+      // Check if user owns this order (or is admin)
+      const user = (req as any).user;
+      if (order.userId !== userId && user.role !== "admin") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
       res.json(order);
     } catch (error) {
       res.status(500).json({ message: "Error fetching order" });
     }
   });
 
-  apiRouter.get("/orders/:id/items", isAdmin, async (req: Request, res: Response) => {
+  apiRouter.get("/orders/:id/items", async (req: Request, res: Response) => {
     try {
+      const userId = (req as any).user?.id;
       const id = parseInt(req.params.id, 10);
+
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid order ID" });
       }
-      
+
+      // First check if user owns this order
+      const order = await storage.getOrderById(id);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      const user = (req as any).user;
+      if (order.userId !== userId && user.role !== "admin") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
       const orderItems = await storage.getOrderItems(id);
       res.json(orderItems);
     } catch (error) {
@@ -416,6 +502,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedOrder);
     } catch (error) {
       res.status(500).json({ message: "Error updating order status" });
+    }
+  });
+
+  // Product Reviews Routes
+
+  // Get product reviews
+  apiRouter.get("/products/:id/reviews", async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const reviews = await storage.getProductReviews(productId);
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching product reviews:", error);
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+  });
+
+  // Create product review
+  apiRouter.post("/products/:id/reviews", async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const reviewData = { ...req.body, productId };
+      const review = await storage.createProductReview(reviewData);
+      res.status(201).json(review);
+    } catch (error) {
+      console.error("Error creating review:", error);
+      res.status(500).json({ error: "Failed to create review" });
+    }
+  });
+
+  // Get user reviews
+  apiRouter.get("/users/:id/reviews", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const reviews = await storage.getUserReviews(userId);
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching user reviews:", error);
+      res.status(500).json({ error: "Failed to fetch user reviews" });
+    }
+  });
+
+  // Update review helpful count
+  apiRouter.patch("/reviews/:id/helpful", async (req: Request, res: Response) => {
+    try {
+      const reviewId = parseInt(req.params.id);
+      const { helpful } = req.body;
+      const review = await storage.updateReviewHelpful(reviewId, helpful);
+      if (!review) {
+        return res.status(404).json({ error: "Review not found" });
+      }
+      res.json(review);
+    } catch (error) {
+      console.error("Error updating review helpful count:", error);
+      res.status(500).json({ error: "Failed to update review" });
+    }
+  });
+
+  // Checkout endpoint
+  apiRouter.post("/checkout", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const { shippingAddress } = req.body;
+      if (!shippingAddress?.trim()) {
+        return res.status(400).json({ message: "Shipping address is required" });
+      }
+
+      // Get user's cart items
+      const sessionId = `user-${userId}`;
+      console.log(`🛒 Checkout: Looking for cart items with sessionId: ${sessionId}`);
+
+      const cartItems = await storage.getCartItems(sessionId);
+      console.log(`🛒 Checkout: Found ${cartItems.length} cart items`);
+
+      if (cartItems.length === 0) {
+        console.log(`❌ Checkout failed: Cart is empty for sessionId: ${sessionId}`);
+        return res.status(400).json({ message: "Cart is empty" });
+      }
+
+      // Calculate total
+      const total = cartItems.reduce((sum, item) =>
+        sum + (item.product.price || 0) * item.quantity, 0
+      );
+
+      // Create order
+      const order = await storage.createOrder({
+        userId,
+        status: "processing", // Automatically mark as processing (paid)
+        total,
+        shippingAddress: shippingAddress.trim(),
+      });
+
+      // Create order items and update inventory
+      for (const cartItem of cartItems) {
+        // Create order item
+        await storage.createOrderItem({
+          orderId: order.id,
+          productId: cartItem.productId,
+          quantity: cartItem.quantity,
+          price: cartItem.product.price || 0,
+        });
+
+        // Update product inventory
+        const product = await storage.getProductById(cartItem.productId);
+        if (product && product.inventory) {
+          const newInventory = Math.max(0, product.inventory - cartItem.quantity);
+          await storage.updateProduct(cartItem.productId, {
+            inventory: newInventory,
+            inStock: newInventory > 0,
+          });
+        }
+      }
+
+      // Clear cart
+      await storage.clearCart(sessionId);
+
+      // Mock email confirmation (log to console)
+      console.log(`📧 Mock Email Sent to User ${userId}:`);
+      console.log(`Subject: Order Confirmation - Order #${order.id}`);
+      console.log(`Order Total: ₹${total.toFixed(2)}`);
+      console.log(`Items: ${cartItems.length} items`);
+      console.log(`Shipping Address: ${shippingAddress}`);
+      console.log(`Status: Processing (Demo - Automatically Paid)`);
+
+      res.status(201).json(order);
+    } catch (error) {
+      console.error("Checkout error:", error);
+      res.status(500).json({ message: "Failed to process checkout" });
     }
   });
 

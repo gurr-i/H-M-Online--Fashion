@@ -9,7 +9,12 @@ import { User } from "@shared/schema";
 
 declare global {
   namespace Express {
-    interface User extends User {}
+    interface User {
+      id: number;
+      username: string;
+      email: string | null;
+      role: "user" | "admin";
+    }
   }
 }
 
@@ -97,8 +102,7 @@ export function setupAuth(app: Express) {
       const user = await storage.createUser({
         username,
         password: hashedPassword,
-        email,
-        role: username === 'admin' ? 'admin' : 'user'
+        email
       });
 
       // Login the user after registration
@@ -112,13 +116,13 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
       if (!user) {
         return res.status(401).json({ message: info?.message || "Authentication failed" });
       }
-      
-      req.login(user, (loginErr) => {
+
+      req.login(user, (loginErr: any) => {
         if (loginErr) return next(loginErr);
         return res.json(user);
       });

@@ -1,10 +1,12 @@
-import { 
-  Product, InsertProduct, 
-  CartItem, InsertCartItem, 
+import {
+  Product, InsertProduct,
+  CartItem, InsertCartItem,
   Category, InsertCategory,
   User, InsertUser,
   Order, InsertOrder,
   OrderItem, InsertOrderItem,
+  ProductReview, InsertProductReview,
+  ProductReviewWithUser,
   CartItemWithProduct
 } from "@shared/schema";
 import session from "express-session";
@@ -57,6 +59,12 @@ export interface IStorage {
   getOrderItems(orderId: number): Promise<OrderItem[]>;
   createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem>;
 
+  // Review management
+  getProductReviews(productId: number): Promise<ProductReviewWithUser[]>;
+  createProductReview(review: InsertProductReview): Promise<ProductReview>;
+  getUserReviews(userId: number): Promise<ProductReview[]>;
+  updateReviewHelpful(reviewId: number, helpful: number): Promise<ProductReview | undefined>;
+
   // Session store
   sessionStore: session.Store;
 }
@@ -68,13 +76,15 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private orders: Map<number, Order>;
   private orderItems: Map<number, OrderItem>;
-  
+  private productReviews: Map<number, ProductReview>;
+
   private productCounter: number;
   private cartItemCounter: number;
   private categoryCounter: number;
   private userCounter: number;
   private orderCounter: number;
   private orderItemCounter: number;
+  private reviewCounter: number;
   
   public sessionStore: session.Store;
 
@@ -85,13 +95,15 @@ export class MemStorage implements IStorage {
     this.users = new Map();
     this.orders = new Map();
     this.orderItems = new Map();
-    
+    this.productReviews = new Map();
+
     this.productCounter = 1;
     this.cartItemCounter = 1;
     this.categoryCounter = 1;
     this.userCounter = 1;
     this.orderCounter = 1;
     this.orderItemCounter = 1;
+    this.reviewCounter = 1;
     
     // Initialize session store
     this.sessionStore = new MemoryStore({
@@ -109,8 +121,13 @@ export class MemStorage implements IStorage {
   
   // Create initial admin user directly (without calling async functions)
   private async createInitialAdminUser() {
-    const { adminUser } = await import('../scripts/seed-data');
-    const newUser: User = { ...adminUser, id: this.userCounter++ };
+    const { createAdminUser } = await import('../scripts/seed-data');
+    const adminUser = await createAdminUser();
+    const newUser: User = {
+      ...adminUser,
+      id: this.userCounter++,
+      createdAt: new Date()
+    };
     this.users.set(newUser.id, newUser);
   }
 
@@ -153,7 +170,15 @@ export class MemStorage implements IStorage {
 
   async createProduct(product: InsertProduct): Promise<Product> {
     const id = this.productCounter++;
-    const newProduct: Product = { ...product, id };
+    const now = new Date();
+    const newProduct: Product = {
+      ...product,
+      id,
+      inStock: product.inStock ?? true,
+      inventory: product.inventory ?? 0,
+      createdAt: now,
+      updatedAt: now
+    };
     this.products.set(id, newProduct);
     return newProduct;
   }
@@ -193,13 +218,18 @@ export class MemStorage implements IStorage {
 
     if (existingItem) {
       // Update quantity if item exists
-      existingItem.quantity += cartItem.quantity;
+      existingItem.quantity += cartItem.quantity || 1;
       this.cartItems.set(existingItem.id, existingItem);
       return existingItem;
     } else {
       // Create new cart item
       const id = this.cartItemCounter++;
-      const newCartItem: CartItem = { ...cartItem, id };
+      const newCartItem: CartItem = {
+        ...cartItem,
+        id,
+        quantity: cartItem.quantity ?? 1,
+        createdAt: new Date()
+      };
       this.cartItems.set(id, newCartItem);
       return newCartItem;
     }
@@ -249,7 +279,12 @@ export class MemStorage implements IStorage {
 
   async createCategory(category: InsertCategory): Promise<Category> {
     const id = this.categoryCounter++;
-    const newCategory: Category = { ...category, id };
+    const newCategory: Category = {
+      ...category,
+      id,
+      parentId: category.parentId ?? null,
+      createdAt: new Date()
+    };
     this.categories.set(id, newCategory);
     return newCategory;
   }
@@ -271,11 +306,13 @@ export class MemStorage implements IStorage {
 
   async createUser(user: InsertUser): Promise<User> {
     const id = this.userCounter++;
-    const now = Date.now();
-    const newUser: User = { 
-      ...user, 
-      id, 
-      createdAt: now 
+    const now = new Date();
+    const newUser: User = {
+      ...user,
+      id,
+      email: user.email ?? null,
+      role: "user",
+      createdAt: now
     };
     this.users.set(id, newUser);
     return newUser;
@@ -329,27 +366,30 @@ export class MemStorage implements IStorage {
 
   async createOrder(order: InsertOrder): Promise<Order> {
     const id = this.orderCounter++;
-    const now = Date.now();
-    const newOrder: Order = { 
-      ...order, 
-      id, 
-      createdAt: now, 
-      updatedAt: now 
+    const now = new Date();
+    const newOrder: Order = {
+      ...order,
+      id,
+      userId: order.userId ?? null,
+      status: order.status ?? "pending",
+      shippingAddress: order.shippingAddress ?? null,
+      createdAt: now,
+      updatedAt: now
     };
     this.orders.set(id, newOrder);
     return newOrder;
   }
 
-  async updateOrderStatus(id: number, status: string): Promise<Order | undefined> {
+  async updateOrderStatus(id: number, status: "pending" | "processing" | "shipped" | "delivered" | "cancelled"): Promise<Order | undefined> {
     const order = this.orders.get(id);
     if (!order) {
       return undefined;
     }
 
-    const updatedOrder = { 
-      ...order, 
-      status, 
-      updatedAt: Date.now() 
+    const updatedOrder = {
+      ...order,
+      status,
+      updatedAt: new Date()
     };
     this.orders.set(id, updatedOrder);
     return updatedOrder;
@@ -367,6 +407,56 @@ export class MemStorage implements IStorage {
     const newOrderItem: OrderItem = { ...orderItem, id };
     this.orderItems.set(id, newOrderItem);
     return newOrderItem;
+  }
+
+  // Review methods
+  async getProductReviews(productId: number): Promise<ProductReviewWithUser[]> {
+    const reviews = Array.from(this.productReviews.values()).filter(
+      (review) => review.productId === productId
+    );
+
+    return reviews.map(review => {
+      const user = this.users.get(review.userId);
+      return {
+        ...review,
+        user: {
+          id: user?.id || 0,
+          username: user?.username || 'Unknown User'
+        }
+      };
+    });
+  }
+
+  async createProductReview(review: InsertProductReview): Promise<ProductReview> {
+    const id = this.reviewCounter++;
+    const now = new Date();
+    const newReview: ProductReview = {
+      ...review,
+      id,
+      title: review.title || null,
+      comment: review.comment || null,
+      helpful: 0,
+      verified: false, // Would be set based on purchase history
+      createdAt: now,
+      updatedAt: now
+    };
+    this.productReviews.set(id, newReview);
+    return newReview;
+  }
+
+  async getUserReviews(userId: number): Promise<ProductReview[]> {
+    return Array.from(this.productReviews.values()).filter(
+      (review) => review.userId === userId
+    );
+  }
+
+  async updateReviewHelpful(reviewId: number, helpful: number): Promise<ProductReview | undefined> {
+    const review = this.productReviews.get(reviewId);
+    if (!review) return undefined;
+
+    const updatedReview = { ...review, helpful };
+    this.productReviews.set(reviewId, updatedReview);
+    return updatedReview;
   }
 }
 

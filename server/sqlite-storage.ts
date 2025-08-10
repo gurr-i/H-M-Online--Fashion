@@ -3,20 +3,23 @@ import { db } from './db';
 import { eq, and, sql } from 'drizzle-orm';
 import session from 'express-session';
 import createMemoryStore from 'memorystore';
-import { 
+import {
   Product, InsertProduct,
   CartItem, InsertCartItem,
   Category, InsertCategory,
   User, InsertUser,
   Order, InsertOrder,
   OrderItem, InsertOrderItem,
+  ProductReview, InsertProductReview,
+  ProductReviewWithUser,
   CartItemWithProduct,
   products,
   cartItems,
   categories,
   users,
   orders,
-  orderItems
+  orderItems,
+  productReviews
 } from '@shared/schema';
 
 // Create memory store for sessions
@@ -29,48 +32,15 @@ export class SQLiteStorage implements IStorage {
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000 // prune expired entries every 24h
     });
-    
-    // Initialize database with sample data
-    this.initializeData().catch(err => {
-      console.error('Failed to initialize database:', err);
-      process.exit(1); // Exit if database initialization fails
-    });
+
+    // Note: Database initialization is now handled by the seeding script
+    // this.initializeData() is no longer called automatically
 
     // Enable foreign key constraints
     db.run(sql`PRAGMA foreign_keys = ON;`);
   }
 
-  private async initializeData() {
-    try {
-      // Import sample data
-      const { adminUser, sampleCategories, sampleProducts } = await import('../scripts/seed-data');
 
-      // Create admin user if not exists
-      const existingAdmin = await this.getUserByUsername('admin');
-      if (!existingAdmin) {
-        await this.createUser(adminUser);
-      }
-
-      // Initialize categories if none exist
-      const existingCategories = await this.getAllCategories();
-      if (existingCategories.length === 0) {
-        for (const category of sampleCategories) {
-          await this.createCategory(category);
-        }
-      }
-
-      // Initialize products if none exist
-      const existingProducts = await this.getAllProducts();
-      if (existingProducts.length === 0) {
-        for (const product of sampleProducts) {
-          await this.createProduct(product);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing database:', error);
-      throw error;
-    }
-  }
 
   // User Methods
   async getUserByUsername(username: string): Promise<User | undefined> {
@@ -175,7 +145,7 @@ export class SQLiteStorage implements IStorage {
 
     if (existingItem.length > 0) {
       const updatedItem = await db.update(cartItems)
-        .set({ quantity: existingItem[0].quantity + cartItem.quantity })
+        .set({ quantity: existingItem[0].quantity + (cartItem.quantity || 1) })
         .where(eq(cartItems.id, existingItem[0].id))
         .returning();
       return updatedItem[0];
@@ -242,7 +212,7 @@ export class SQLiteStorage implements IStorage {
     return result[0];
   }
 
-  async updateOrderStatus(id: number, status: string): Promise<Order | undefined> {
+  async updateOrderStatus(id: number, status: "pending" | "processing" | "shipped" | "delivered" | "cancelled"): Promise<Order | undefined> {
     const result = await db.update(orders)
       .set({ status, updatedAt: new Date() })
       .where(eq(orders.id, id))
@@ -257,6 +227,54 @@ export class SQLiteStorage implements IStorage {
 
   async createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem> {
     const result = await db.insert(orderItems).values(orderItem).returning();
+    return result[0];
+  }
+
+  // Review Methods
+  async getProductReviews(productId: number): Promise<ProductReviewWithUser[]> {
+    const result = await db
+      .select({
+        id: productReviews.id,
+        productId: productReviews.productId,
+        userId: productReviews.userId,
+        rating: productReviews.rating,
+        title: productReviews.title,
+        comment: productReviews.comment,
+        verified: productReviews.verified,
+        helpful: productReviews.helpful,
+        createdAt: productReviews.createdAt,
+        updatedAt: productReviews.updatedAt,
+        user: {
+          id: users.id,
+          username: users.username
+        }
+      })
+      .from(productReviews)
+      .leftJoin(users, eq(productReviews.userId, users.id))
+      .where(eq(productReviews.productId, productId))
+      .orderBy(productReviews.createdAt);
+
+    return result.map(row => ({
+      ...row,
+      user: row.user || { id: 0, username: 'Unknown User' }
+    }));
+  }
+
+  async createProductReview(review: InsertProductReview): Promise<ProductReview> {
+    const result = await db.insert(productReviews).values(review).returning();
+    return result[0];
+  }
+
+  async getUserReviews(userId: number): Promise<ProductReview[]> {
+    return await db.select().from(productReviews).where(eq(productReviews.userId, userId));
+  }
+
+  async updateReviewHelpful(reviewId: number, helpful: number): Promise<ProductReview | undefined> {
+    const result = await db
+      .update(productReviews)
+      .set({ helpful })
+      .where(eq(productReviews.id, reviewId))
+      .returning();
     return result[0];
   }
 }

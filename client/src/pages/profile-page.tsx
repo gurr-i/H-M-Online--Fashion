@@ -1,5 +1,5 @@
 import React from "react";
-import { Redirect } from "wouter";
+import { Redirect, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,32 +8,19 @@ import { Badge } from "@/components/ui/badge";
 import { PackageOpen, ShoppingBag, Heart, User, LogOut, Settings, History } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 const ProfilePage: React.FC = () => {
   const { toast } = useToast();
-  
-  // Simulate authentication state
-  const isLoggedIn = false; // This would be from an auth context
-  
+  const { user, logoutMutation } = useAuth();
+
   // If user is not logged in, redirect to auth page
-  if (!isLoggedIn) {
+  if (!user) {
     return <Redirect to="/auth" />;
   }
-  
+
   const handleLogout = () => {
-    toast({
-      title: "Logged Out",
-      description: "You have been logged out successfully.",
-    });
-  };
-  
-  // Mock user data
-  const user = {
-    username: "johndoe",
-    email: "john.doe@example.com",
-    memberSince: "January 2022",
-    points: 120,
-    profileImage: "",
+    logoutMutation.mutate();
   };
   
   // Mock order history
@@ -52,15 +39,15 @@ const ProfilePage: React.FC = () => {
             <CardHeader>
               <div className="flex flex-col items-center gap-4">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={user.profileImage} alt={user.username} />
+                  <AvatarImage src="" alt={user.username} />
                   <AvatarFallback className="text-xl">{user.username[0].toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="text-center">
                   <CardTitle>{user.username}</CardTitle>
                   <p className="text-sm text-gray-500">{user.email}</p>
-                  <p className="text-xs text-gray-400 mt-1">Member since {user.memberSince}</p>
+                  <p className="text-xs text-gray-400 mt-1">Member since {new Date(user.createdAt).toLocaleDateString()}</p>
                 </div>
-                <Badge className="mt-2 bg-primary">H&M MEMBER - {user.points} POINTS</Badge>
+                <Badge className="mt-2 bg-primary">H&M MEMBER - 0 POINTS</Badge>
               </div>
             </CardHeader>
             <CardContent>
@@ -69,10 +56,12 @@ const ProfilePage: React.FC = () => {
                   <User className="mr-2 h-4 w-4" />
                   My Account
                 </Button>
-                <Button variant="ghost" className="w-full justify-start">
-                  <ShoppingBag className="mr-2 h-4 w-4" />
-                  My Orders
-                </Button>
+                <Link href="/orders">
+                  <Button variant="ghost" className="w-full justify-start">
+                    <ShoppingBag className="mr-2 h-4 w-4" />
+                    My Orders
+                  </Button>
+                </Link>
                 <Button variant="ghost" className="w-full justify-start">
                   <Heart className="mr-2 h-4 w-4" />
                   Wishlist
@@ -161,9 +150,9 @@ const ProfilePage: React.FC = () => {
                     
                     <div>
                       <h3 className="text-lg font-semibold mb-2">Membership</h3>
-                      <p className="mb-2">H&M Member - {user.points} points</p>
+                      <p className="mb-2">H&M Member - 0 points</p>
                       <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                        <div className="bg-primary h-2.5 rounded-full" style={{ width: `${Math.min(user.points / 2, 100)}%` }}></div>
+                        <div className="bg-primary h-2.5 rounded-full" style={{ width: "0%" }}></div>
                       </div>
                       <p className="text-sm text-gray-500">Earn 80 more points to reach the next tier</p>
                       <Button variant="link" className="px-0 mt-2">

@@ -48,7 +48,7 @@ const UsersPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const { toast } = useToast();
 
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
@@ -245,7 +245,7 @@ const UsersPage: React.FC = () => {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="Email" {...field} />
+                        <Input type="email" placeholder="Email" {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -351,7 +351,7 @@ const UsersPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {new Date(user.createdAt * 1000).toLocaleDateString()}
+                    {new Date(typeof user.createdAt === 'number' ? user.createdAt * 1000 : user.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

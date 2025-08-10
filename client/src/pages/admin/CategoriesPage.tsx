@@ -48,7 +48,7 @@ const CategoriesPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const { toast } = useToast();
 
-  const { data: categories, isLoading } = useQuery({
+  const { data: categories, isLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
@@ -128,7 +128,7 @@ const CategoriesPage: React.FC = () => {
     defaultValues: {
       name: "",
       slug: "",
-      parentId: null,
+      parentId: undefined,
     },
   });
 
@@ -137,7 +137,7 @@ const CategoriesPage: React.FC = () => {
     defaultValues: {
       name: "",
       slug: "",
-      parentId: null,
+      parentId: undefined,
     },
   });
 

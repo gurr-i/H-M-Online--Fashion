@@ -13,7 +13,11 @@ import ShoppingBag from "@/pages/ShoppingBag";
 import AuthPage from "@/pages/auth-page";
 import ProfilePage from "@/pages/profile-page";
 import ProductDetails from "@/pages/ProductDetails";
-import Checkout from "@/pages/Checkout";
+import CheckoutPage from "@/pages/CheckoutPage";
+import SearchPage from "@/pages/SearchPage";
+import OrderHistory from "@/pages/OrderHistory";
+import OrderDetailsPage from "@/pages/OrderDetailsPage";
+import WishlistPage from "@/pages/WishlistPage";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/lib/protected-route";
 
@@ -23,6 +27,7 @@ import ProductsPage from "@/pages/admin/ProductsPage";
 import CategoriesPage from "@/pages/admin/CategoriesPage";
 import OrdersPage from "@/pages/admin/OrdersPage";
 import UsersPage from "@/pages/admin/UsersPage";
+import AnalyticsPage from "@/pages/admin/AnalyticsPage";
 
 function Router() {
   return (
@@ -34,7 +39,8 @@ function Router() {
         <ProtectedRoute path="/admin/categories" component={CategoriesPage} adminOnly={true} />
         <ProtectedRoute path="/admin/orders" component={OrdersPage} adminOnly={true} />
         <ProtectedRoute path="/admin/users" component={UsersPage} adminOnly={true} />
-        
+        <ProtectedRoute path="/admin/analytics" component={AnalyticsPage} adminOnly={true} />
+
         {/* Customer-facing routes */}
         <Route path="/auth" component={AuthPage} />
         <Route>
@@ -52,12 +58,15 @@ function Router() {
               <Route path="/home-collection" component={HomeCollection} />
               <Route path="/home-collection/:subcategory" component={HomeCollection} />
               <Route path="/products/:id" component={ProductDetails} />
-              
-              {/* User-related routes */}
+
+              {/* Search and User-related routes */}
+              <Route path="/search" component={SearchPage} />
               <Route path="/shopping-bag" component={ShoppingBag} />
-              <Route path="/checkout" component={Checkout} />
-              <Route path="/products/:id" component={ProductDetails} />
+              <Route path="/checkout" component={CheckoutPage} />
               <ProtectedRoute path="/profile" component={ProfilePage} />
+              <ProtectedRoute path="/orders" component={OrderHistory} />
+              <ProtectedRoute path="/orders/:id" component={OrderDetailsPage} />
+              <ProtectedRoute path="/wishlist" component={WishlistPage} />
               
               <Route component={NotFound} />
             </Switch>
